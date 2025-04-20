@@ -191,7 +191,7 @@ def run_agent(query: str) -> str:
          return "Error: GROQ API key is missing."
 
     try:
-        llm = Groq(model="llama-3.3-70b-versatile", api_key=groq_api_key)
+        llm = Groq(model="meta-llama/llama-4-maverick-17b-128e-instruct", api_key=groq_api_key)
         agent = ReActAgent.from_tools(
             tools=[semantic_search_function_tool],
             llm=llm,
