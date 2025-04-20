@@ -56,36 +56,54 @@ def search() -> tuple[Dict[str, Any], int]:
 
 
 
-@app.route("/search_from_audio_stream")
+@app.route("/search_from_audio_stream", methods=["POST"])
 def search_from_audio_stream():
     def generate():
-        file = request.files.get("audio")
+        # 0) ensure we got a file
+        file: FileStorage = request.files.get("audio")
+        if not file:
+            yield "event: error\ndata: " + json.dumps({
+                "message": "No 'audio' file field in request"
+            }) + "\n\n"
+            return
+
         raw = file.read()
 
-        # 1) Transcription start
-        yield "event: progress\ndata: " + json.dumps({"step": "transcribing", "message": "Uploading & transcribing…"}) + "\n\n"
+        # 1) Transcribing
+        yield "event: progress\ndata: " + json.dumps({
+            "step": "transcribing",
+            "message": "Uploading & transcribing…"
+        }) + "\n\n"
+
         transcript_rsp = audio_client.audio.transcriptions.create(
             model="Systran/faster-distil-whisper-large-v3",
             file=(file.filename, raw),
         )
         transcript = transcript_rsp.text.strip()
 
-        # 2) Send the transcript as soon as it’s ready
-        yield "event: transcript\ndata: " + json.dumps({"transcript": transcript}) + "\n\n"
+        # 2) Emit transcript
+        yield "event: transcript\ndata: " + json.dumps({
+            "transcript": transcript
+        }) + "\n\n"
 
-        # 3) Agent processing start
-        yield "event: progress\ndata: " + json.dumps({"step": "searching", "message": "Generating the answer…"}) + "\n\n"
+        # 3) Searching
+        yield "event: progress\ndata: " + json.dumps({
+            "step": "searching",
+            "message": "Generating the answer…"
+        }) + "\n\n"
+
         answer = run_agent(transcript)
 
         # 4) Final answer
-        yield "event: answer\ndata: " + json.dumps({"answer": answer}) + "\n\n"
+        yield "event: answer\ndata: " + json.dumps({
+            "answer": answer
+        }) + "\n\n"
 
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
-
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
